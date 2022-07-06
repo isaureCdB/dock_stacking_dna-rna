@@ -1,0 +1,5 @@
+restraints/rest-a1n3-a2n2					frag7
+restraints/rest-a1n2-a2n1-a3n3		frag8
+restraints/rest-a1n1-a3n2-a4n3		frag9
+restraints/rest-a3n1-a4n2					frag10
+#restraints/rest-a2n3							frag6

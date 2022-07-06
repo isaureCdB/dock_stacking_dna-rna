@@ -1,11 +1,18 @@
 #!/usr/bin/env bash
 
+# !!!!!!!!!!!!!!!!!!!!
+# add the dock_stacking_dna-rna git repository to your environment variables by typing
+# export STACK=<path to dock_stacking_dna-rna>
+# !!!!!!!!!!!!!!!!!!!!
+
+
 d=`pwd`
 
 protein=$1
 aromatics=$2 #aromatics.list
 np=$3   #number of CPU to use
 nmodels=$4 #number of models per motif
+
 
 ################################################################################
 # Check environment variables
@@ -40,9 +47,9 @@ python2 $ATTRACTDIR/../allatom/aareduce.py $protein protein-aa.pdb --dna --chain
 python2 $ATTRACTTOOLS/reduce.py protein-aa.pdb proteinr.pdb --dna --chain A > mapping
 sed -i 's/25   0.000/20   0.000/g' proteinr.pdb
 
-if [ -s dna.pdb ];then 
+if [ -s dna-ref.pdb ];then 
 	python2 $ATTRACTDIR/../allatom/aareduce.py $dna dna-aa.pdb --dna --heavy > /dev/null
-	python3 split-frag.py dna-aa.pdb frag > frag.list
+	python3 $STACK/split-frag.py dna-aa.pdb frag > frag.list
 fi
 ###fi
 receptorr=proteinr.pdb
@@ -54,10 +61,16 @@ echo '**************************************************************'
 if [ ! -d restraints ];then
 	mkdir restraints
 fi
-python3 create_stack_restraints.py $aromatics proteinr.pdb mapping restraints 5 6 > restraints.list
+python3 $STACK/create_stack_restraints.py $aromatics proteinr.pdb mapping restraints 5 6 > restraints.list
 
-#restraintslist=restraints.list
-# !!!!!!!!!!!!! This is to test the script on the "correct" ad hoc restraints !!!!!!!!
+restraintslist=restraints.list
+
+# !!!!!!!!!!!!!̣̣̣̣̣̣̣̣̣̣!!!!!!!
+# The next line is to test the script on the "correct" ad hoc restraints: 
+# To save time when benchmarking, first test if we can sample the correct pose 
+# when taking the ideal restraints; then test how far in rank those poses 
+# would be if pooling with the results from using the other restraints
+# !!!!!!!!!!!!!!!!!!!!!
 restraintslist=native-rest.list
 
 
@@ -149,8 +162,16 @@ dock(){
 		echo '**************************************************************'
 		echo "sampling ${motif} rest$rest"
 		echo '**************************************************************'
+		
+		# minimize according only to the distance (stacking) restrains
+		# and with only rotations allowed (no translations)
+		# => rotate the protein to avoid useless sampling on its other side
 		python2  $ATTRACTDIR/../protocols/attract.py $start $ghostparams --rest $rest --output ${motif}-0.dat
+		
+		# fix back the receptor
 		$ATTRACTDIR/fix_receptor ${motif}-0.dat 2 --ens 0 $Nconf > ${motif}-1.dat
+		
+		# minimize with both force-field and restrains
 		python2  $ATTRACTDIR/../protocols/attract.py ${motif}-1.dat $params --rest $rest --output ${motif}-2.dat
 
 		echo '**************************************************************'
@@ -162,15 +183,21 @@ dock(){
 		echo "sorting ${motif} rest$rest"
 		echo '**************************************************************'
 		python2  $ATTRACTTOOLS/fill-energies.py ${motif}-2.dat ${motif}-2.score > ${motif}-3.dat
-		python2  select-dat.py ${motif}-3.dat --score 0 > ${motif}-4.dat
+		
+		#remove poses with positive energy
+		python2  $STACK/select-dat.py ${motif}-3.dat --score 0 > ${motif}-4.dat
+		
+		#sort poses by energy
 		python2  $ATTRACTTOOLS/sort.py ${motif}-4.dat > ${motif}-5.dat
+		
+		#some data transformation
 		$ATTRACTDIR/fix_receptor ${motif}-5.dat 2 --ens 0 $Nconf | python2  $ATTRACTTOOLS/fill.py /dev/stdin ${motif}-5.dat > ${motif}-6.dat
 
 		echo '**************************************************************'
 		echo "removing redundant poses for ${motif} rest$rest"
-		echo '**************************************************************'
-		$ATTRACTDIR/deredundant ${motif}-6.dat 2 --ens 0 $Nconf --lim 0.2 | python2  $ATTRACTTOOLS/fill-deredundant.py /dev/stdin ${motif}-6.dat > $motif-rest$r.dat
-		
+		echo '**************************************************************'	
+		python2 $ATTRACTTOOLS/deredundant.py $motif-6.dat 0.2 --ens 0 $Nconf > $motif-rest$r.dat
+	
 		echo '**************************************************************'
 		echo "convert ${motif} rest$rest to pdb"
 		echo '**************************************************************'		
@@ -178,7 +205,7 @@ dock(){
 		$ATTRACTDIR/collect $motif-top$nmodels.dat /dev/null $ligandaa --ens 2 $listaa > $motif-rest$r-top$nmodels.pdb
 		
 		echo '**************************************************************'
-		echo 'compute RMSD'
+		echo 'compute RMSD to reference position (for benchmarking)'
 		echo '**************************************************************'
 		if [ -s frag.list ];then
 			i=1
@@ -190,6 +217,7 @@ dock(){
 				
 			i=$(($i+1))
 			done
+		$STACK/results-native.sh
 		fi
 	
 	done
