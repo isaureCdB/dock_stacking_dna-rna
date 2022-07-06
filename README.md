@@ -1,26 +1,31 @@
 # dock_stacking_dna-rna
 
-****************************
+#####################################
 Context
-****************************
+#####################################
 We want to dock ssDNA or ssRNA of a given sequence on a protein structure/model, and we assume that some known aromatic amino-acid.
 do stacking interactions with some nucleotide bases.
 
-****************************
+#####################################
 Approach
-****************************
+#####################################
 We use :
-- a fragment-based approach to tackle the hge conformational space of ssDNA/ssRNA. 
-- a coarse-grain representation of the protein and the ssDNA/ssRNA (thereafyter called NA) fragment
+- a fragment-based approach to tackle the huge conformational space of ssDNA/ssRNA (thereafyter called ssNA)
+- home made libraries* of ssNA
+- a coarse-grain representation of the protein and ssNA
 - many random positions of the fragments around the protein 
 - a gradient descent* minimisation of the interaction energy in a force-field
-- 
+- distance restraints between the aromatic ring and base ring atoms
 
-*Monte-carlo approach is also available, with some script tuning
+* see:
+https://doi.org/10.1093/bioinformatics/btac430
 
-****************************
+
+** Monte-carlo approach is also available, with some script tuning
+
+#####################################
 Procedure
-****************************
+#####################################
 List the anchoring residue numbers (from your initial protein PDB file) in aromatics.list.
 Create one list per cluster of neighbor anchors. For your tetramer, run the docking once for each monomer, by giving for each run the list of stacking aromatics in that monomer. 
 
